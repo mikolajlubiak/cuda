@@ -21,18 +21,14 @@ void gendata_cpu(int *const arr, const int num) {
 }
 
 __global__ void add_vectors_gpu(const int *const a, const int *const b,
-                                int *const c, const int num) {
+                                int *const c) {
   int i = threadIdx.x + blockIdx.x * blockDim.x;
-  if (i < num) {
-    c[i] = a[i] + b[i];
-  }
+  c[i] = a[i] + b[i];
 }
 
-__global__ void gendata_gpu(int *const arr, const int num) {
+__global__ void gendata_gpu(int *const arr) {
   int i = threadIdx.x + blockIdx.x * blockDim.x;
-  if (i < num) {
-    arr[i] = i;
-  }
+  arr[i] = i;
 }
 
 int main() {
@@ -74,10 +70,10 @@ int main() {
   // GPU
   tic = clock();
 
-  gendata_gpu<<<GRID_SIZE, BLOCK_SIZE>>>(cuda_a, SIZE);
-  gendata_gpu<<<GRID_SIZE, BLOCK_SIZE>>>(cuda_b, SIZE);
+  gendata_gpu<<<GRID_SIZE, BLOCK_SIZE>>>(cuda_a);
+  gendata_gpu<<<GRID_SIZE, BLOCK_SIZE>>>(cuda_b);
 
-  add_vectors_gpu<<<GRID_SIZE, BLOCK_SIZE>>>(cuda_a, cuda_b, cuda_c, SIZE);
+  add_vectors_gpu<<<GRID_SIZE, BLOCK_SIZE>>>(cuda_a, cuda_b, cuda_c);
 
   toc = clock();
 
