@@ -38,8 +38,7 @@ int main() {
   const int MEM_SIZE = SIZE * sizeof(int);
   cudaDeviceProp deviceProp;
   cudaGetDeviceProperties(&deviceProp, 0);
-  const int MAX_THREADS_PER_BLOCK = deviceProp.maxThreadsPerBlock;
-  const int BLOCK_SIZE = min(MAX_THREADS_PER_BLOCK, SIZE);
+  const int BLOCK_SIZE = deviceProp.maxThreadsPerBlock;
   const int GRID_SIZE = (SIZE + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
   int *a = (int *)malloc(MEM_SIZE);
