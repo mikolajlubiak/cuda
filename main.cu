@@ -2,6 +2,8 @@
 #include <cuda_runtime_api.h>
 #include <device_launch_parameters.h>
 #include <driver_types.h>
+
+#include <assert.h>
 #include <stdio.h>
 #include <time.h>
 
@@ -66,6 +68,7 @@ int main() {
   add_vectors_cpu(a, b, c, SIZE);
   toc = clock();
   printf("Elapsed CPU: %f seconds\n", (double)(toc - tic) / CLOCKS_PER_SEC);
+  int test_cpu = c[5];
 
   tic = clock();
   add_vectors_gpu<<<1, SIZE>>>(cuda_a, cuda_b, cuda_c);
@@ -73,6 +76,9 @@ int main() {
   printf("Elapsed GPU: %f seconds\n", (double)(toc - tic) / CLOCKS_PER_SEC);
 
   cudaMemcpy(c, cuda_c, SIZE * sizeof(int), cudaMemcpyDeviceToHost);
+  int test_gpu = c[5];
+
+  assert(test_gpu == test_cpu);
 
   return 0;
 }
