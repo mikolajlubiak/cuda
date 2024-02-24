@@ -5,6 +5,7 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <time.h>
 
 void add_vectors_cpu(const int *const a, const int *const b, int *const c,
@@ -21,68 +22,91 @@ void gendata_cpu(int *const arr, const int num) {
 }
 
 __global__ void add_vectors_gpu(const int *const a, const int *const b,
-                                int *const c) {
-  int i = threadIdx.x + blockIdx.x * blockDim.x;
-  c[i] = a[i] + b[i];
+                                int *const c, const int num) {
+  int idx = threadIdx.x + blockIdx.x * blockDim.x;
+  if (idx < num)
+    c[idx] = a[idx] + b[idx];
 }
 
-__global__ void gendata_gpu(int *const arr) {
-  int i = threadIdx.x + blockIdx.x * blockDim.x;
-  arr[i] = i;
+__global__ void gendata_gpu(int *const arr, const int num) {
+  int idx = threadIdx.x + blockIdx.x * blockDim.x;
+  if (idx < num)
+    arr[idx] = idx;
 }
 
 int main() {
-  clock_t tic;
-  clock_t toc;
+  cudaError_t err;
+
+  float time;
+  cudaEvent_t start_gpu, stop_gpu;
+  clock_t start_cpu, stop_cpu;
+
   const int SIZE = 100000000; // 100_000_000
   const int MEM_SIZE = SIZE * sizeof(int);
-  cudaDeviceProp deviceProp;
-  cudaGetDeviceProperties(&deviceProp, 0);
-  const int BLOCK_SIZE = deviceProp.maxThreadsPerBlock;
-  const int GRID_SIZE = (SIZE + BLOCK_SIZE - 1) / BLOCK_SIZE;
+  int block_size, grid_size;
 
-  int *a = (int *)malloc(MEM_SIZE);
-  int *b = (int *)malloc(MEM_SIZE);
-  int *c = (int *)malloc(MEM_SIZE);
+  int *a_cpu = (int *)malloc(MEM_SIZE);
+  int *b_cpu = (int *)malloc(MEM_SIZE);
+  int *c_cpu = (int *)malloc(MEM_SIZE);
+  int *a_gpu;
+  int *b_gpu;
+  int *c_gpu;
 
-  int *cuda_a;
-  int *cuda_b;
-  int *cuda_c;
-  cudaMalloc(&cuda_a, MEM_SIZE);
-  cudaMalloc(&cuda_b, MEM_SIZE);
-  cudaMalloc(&cuda_c, MEM_SIZE);
+  err = cudaMalloc(&a_gpu, MEM_SIZE);
+  if (err != cudaSuccess) {
+    printf("Failed to allocate memory: %s\n", cudaGetErrorString(err));
+    return EXIT_FAILURE;
+  }
+  cudaMalloc(&b_gpu, MEM_SIZE);
+  cudaMalloc(&c_gpu, MEM_SIZE);
+
+  cudaEventCreate(&start_gpu);
+  cudaEventCreate(&stop_gpu);
+
+  err = cudaOccupancyMaxPotentialBlockSize(&grid_size, &block_size, gendata_gpu,
+                                           0, SIZE);
+  if (err != cudaSuccess) {
+    printf("Failed to determine max potential block size: %s\n",
+           cudaGetErrorString(err));
+    return EXIT_FAILURE;
+  }
+
+  grid_size = (SIZE + block_size - 1) / block_size;
 
   // CPU
-  tic = clock();
+  start_cpu = clock();
 
-  gendata_cpu(a, SIZE);
-  gendata_cpu(b, SIZE);
+  gendata_cpu(a_cpu, SIZE);
+  gendata_cpu(b_cpu, SIZE);
 
-  add_vectors_cpu(a, b, c, SIZE);
+  add_vectors_cpu(a_cpu, b_cpu, c_cpu, SIZE);
 
-  toc = clock();
+  stop_cpu = clock();
 
-  printf("Elapsed CPU: %f seconds\n", (double)(toc - tic) / CLOCKS_PER_SEC);
+  printf("Elapsed CPU: %f seconds\n",
+         (float)(stop_cpu - start_cpu) / CLOCKS_PER_SEC);
 
-  int test_cpu = c[SIZE - 1];
+  int assert_cpu = c_cpu[SIZE - 1];
 
   // GPU
-  tic = clock();
+  cudaEventRecord(start_gpu, 0);
 
-  gendata_gpu<<<GRID_SIZE, BLOCK_SIZE>>>(cuda_a);
-  gendata_gpu<<<GRID_SIZE, BLOCK_SIZE>>>(cuda_b);
+  gendata_gpu<<<grid_size, block_size>>>(a_gpu, SIZE);
+  gendata_gpu<<<grid_size, block_size>>>(b_gpu, SIZE);
 
-  add_vectors_gpu<<<GRID_SIZE, BLOCK_SIZE>>>(cuda_a, cuda_b, cuda_c);
+  add_vectors_gpu<<<grid_size, block_size>>>(a_gpu, b_gpu, c_gpu, SIZE);
 
-  toc = clock();
+  cudaEventRecord(stop_gpu, 0);
+  cudaEventSynchronize(stop_gpu);
+  cudaEventElapsedTime(&time, start_gpu, stop_gpu);
 
-  printf("Elapsed GPU: %f seconds\n", (double)(toc - tic) / CLOCKS_PER_SEC);
+  printf("Elapsed GPU: %f seconds\n", time / 1000);
 
-  cudaMemcpy(c, cuda_c, MEM_SIZE, cudaMemcpyDeviceToHost);
-  int test_gpu = c[SIZE - 1];
+  cudaMemcpy(c_cpu, c_gpu, MEM_SIZE, cudaMemcpyDeviceToHost);
+  int assert_gpu = c_cpu[SIZE - 1];
 
-  printf("%d, %d\n", test_cpu, test_gpu);
-  assert(test_cpu == test_gpu);
+  printf("%d, %d\n", assert_cpu, assert_gpu);
+  assert(assert_cpu == assert_gpu);
 
-  return 0;
+  return EXIT_SUCCESS;
 }
