@@ -108,5 +108,14 @@ int main() {
   printf("%d, %d\n", assert_cpu, assert_gpu);
   assert(assert_cpu == assert_gpu);
 
+  cudaEventDestroy(start_gpu);
+  cudaEventDestroy(stop_gpu);
+  cudaFree(a_gpu);
+  cudaFree(b_gpu);
+  cudaFree(c_gpu);
+  free(a_cpu);
+  free(b_cpu);
+  free(c_cpu);
+
   return EXIT_SUCCESS;
 }
