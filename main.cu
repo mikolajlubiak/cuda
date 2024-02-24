@@ -68,6 +68,11 @@ int main() {
   if (err != cudaSuccess) {
     printf("Failed to determine max potential block size: %s\n",
            cudaGetErrorString(err));
+    cudaEventDestroy(start_gpu);
+    cudaEventDestroy(stop_gpu);
+    cudaFree(a_gpu);
+    cudaFree(b_gpu);
+    cudaFree(c_gpu);
     return EXIT_FAILURE;
   }
 
@@ -105,9 +110,6 @@ int main() {
   cudaMemcpy(c_cpu, c_gpu, MEM_SIZE, cudaMemcpyDeviceToHost);
   int assert_gpu = c_cpu[SIZE - 1];
 
-  printf("%d, %d\n", assert_cpu, assert_gpu);
-  assert(assert_cpu == assert_gpu);
-
   cudaEventDestroy(start_gpu);
   cudaEventDestroy(stop_gpu);
   cudaFree(a_gpu);
@@ -116,6 +118,9 @@ int main() {
   free(a_cpu);
   free(b_cpu);
   free(c_cpu);
+
+  printf("%d, %d\n", assert_cpu, assert_gpu);
+  assert(assert_cpu == assert_gpu);
 
   return EXIT_SUCCESS;
 }
